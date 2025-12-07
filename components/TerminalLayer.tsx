@@ -66,7 +66,6 @@ export const TerminalLayer: React.FC<TerminalLayerProps> = ({
   const workspaceInnerRef = useRef<HTMLDivElement>(null);
   const workspaceOverlayRef = useRef<HTMLDivElement>(null);
   const [dropHint, setDropHint] = useState<SplitHint>(null);
-  const [focusedSessionId, setFocusedSessionId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{
     workspaceId: string;
     splitId: string;
@@ -342,7 +341,6 @@ export const TerminalLayer: React.FC<TerminalLayerProps> = ({
           const isActiveSolo = activeTabId === session.id && !activeWorkspace && isTerminalLayerVisible;
           const isVisible = (inActiveWorkspace || isActiveSolo) && isTerminalLayerVisible;
           const rect = inActiveWorkspace ? activeWorkspaceRects[session.id] : null;
-          const isFocused = focusedSessionId === session.id && isVisible;
 
           const layoutStyle = rect
             ? {
@@ -353,14 +351,7 @@ export const TerminalLayer: React.FC<TerminalLayerProps> = ({
             }
             : { left: 0, top: 0, width: '100%', height: '100%' };
 
-          const style: React.CSSProperties = isFocused
-            ? {
-              ...layoutStyle,
-              outline: '2px solid hsl(var(--primary))',
-              outlineOffset: -4,
-              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
-            }
-            : { ...layoutStyle };
+          const style: React.CSSProperties = { ...layoutStyle };
 
           if (!isVisible) {
             style.display = 'none';
@@ -371,10 +362,11 @@ export const TerminalLayer: React.FC<TerminalLayerProps> = ({
               key={session.id}
               className={cn(
                 "absolute bg-background border border-border/60",
+                inActiveWorkspace && "workspace-pane",
                 isVisible && "z-10"
               )}
               style={style}
-              onClick={() => setFocusedSessionId(session.id)}
+              tabIndex={-1}
             >
               <Terminal
                 host={host}

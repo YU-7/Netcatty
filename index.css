@@ -94,3 +94,24 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+.workspace-pane {
+  outline: none;
+  overflow: visible;
+}
+
+.workspace-pane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  border: 2px solid hsl(var(--primary));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease, box-shadow 120ms ease;
+  z-index: 40;
+}
+
+.workspace-pane:focus-within::after {
+  opacity: 1;
+}
