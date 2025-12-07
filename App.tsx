@@ -360,12 +360,8 @@ function App() {
 
   // SFTP View State
   type SftpPaneTab = { id: string; label: string; isLocal: boolean; hostId?: string; path: string; filter: string; status?: 'idle' | 'connecting' | 'connected' };
-  const [sftpLeftTabs, setSftpLeftTabs] = useState<SftpPaneTab[]>([
-    { id: 'local-default', label: 'Local', isLocal: true, hostId: 'local', path: '/Users/chenqi', filter: '' },
-  ]);
-  const [sftpRightTabs, setSftpRightTabs] = useState<SftpPaneTab[]>([]);
-  const [sftpLeftActiveId, setSftpLeftActiveId] = useState<string>('local-default');
-  const [sftpRightActiveId, setSftpRightActiveId] = useState<string | null>(null);
+  const [sftpLeftTab, setSftpLeftTab] = useState<SftpPaneTab>({ id: 'local-default', label: 'Local', isLocal: true, hostId: 'local', path: '/Users/chenqi', filter: '' });
+  const [sftpRightTab, setSftpRightTab] = useState<SftpPaneTab | null>(null);
   const [sftpHostModalSide, setSftpHostModalSide] = useState<'left' | 'right' | null>(null);
   const [sftpHostPickerSearch, setSftpHostPickerSearch] = useState('');
 
@@ -481,13 +477,12 @@ function App() {
   }, [hosts, sftpHostPickerSearch]);
 
   const breadcrumbForPath = (path: string) => {
-    if (path === '/') return [{ label: '/', path: '/' }];
+    if (path === '/') return [];
     const parts = path.split('/').filter(Boolean);
-    const crumbs = parts.map((part, idx) => ({
+    return parts.map((part, idx) => ({
       label: part,
       path: '/' + parts.slice(0, idx + 1).join('/'),
     }));
-    return [{ label: '/', path: '/' }, ...crumbs];
   };
 
   const parentForPath = (path: string) => {
@@ -519,80 +514,34 @@ function App() {
     return ext ? ext.toLowerCase() : 'file';
   };
 
-  const updateTabField = (side: 'left' | 'right', tabId: string, updater: (tab: SftpPaneTab) => Partial<SftpPaneTab>) => {
-    const apply = (tabs: SftpPaneTab[]) => tabs.map(tab => tab.id === tabId ? { ...tab, ...updater(tab) } : tab);
-    side === 'left' ? setSftpLeftTabs(apply) : setSftpRightTabs(apply);
+  const updateTabField = (side: 'left' | 'right', updater: (tab: SftpPaneTab) => Partial<SftpPaneTab>) => {
+    if (side === 'left') setSftpLeftTab(prev => ({ ...prev, ...updater(prev) }));
+    else setSftpRightTab(prev => prev ? ({ ...prev, ...updater(prev) }) : prev);
   };
 
   const openEntry = (side: 'left' | 'right', tab: SftpPaneTab | null, item: FileItem) => {
     if (!tab || item.type !== 'directory') return;
     if (item.name === '..') {
       const parent = parentForPath(tab.path);
-      updateTabField(side, tab.id, () => ({ path: parent }));
+      updateTabField(side, () => ({ path: parent }));
       return;
     }
     const next = tab.path === '/' ? `/${item.name}` : `${tab.path}/${item.name}`;
-    updateTabField(side, tab.id, () => ({ path: next }));
+    updateTabField(side, () => ({ path: next }));
   };
 
-  const addTab = (side: 'left' | 'right', tab: SftpPaneTab) => {
-    if (side === 'left') {
-      setSftpLeftTabs(prev => [...prev, tab]);
-      setSftpLeftActiveId(tab.id);
-    } else {
-      setSftpRightTabs(prev => [...prev, tab]);
-      setSftpRightActiveId(tab.id);
-    }
-  };
-
-  const closeTab = (side: 'left' | 'right', tabId: string) => {
-    if (side === 'left') {
-      setSftpLeftTabs(prev => {
-        const next = prev.filter(t => t.id !== tabId);
-        const fallback = next[next.length - 1];
-        setSftpLeftActiveId(fallback ? fallback.id : '');
-        return next.length ? next : [{ id: 'local-default', label: 'Local', isLocal: true, hostId: 'local', path: '/Users/chenqi', filter: '', status: 'connected' }];
-      });
-    } else {
-      setSftpRightTabs(prev => {
-        const next = prev.filter(t => t.id !== tabId);
-        const fallback = next[next.length - 1] || null;
-        setSftpRightActiveId(fallback ? fallback.id : null);
-        return next;
-      });
-    }
-  };
-
-  const ensureActiveTabs = () => {
-    if (sftpLeftTabs.length && !sftpLeftTabs.find(t => t.id === sftpLeftActiveId)) {
-      setSftpLeftActiveId(sftpLeftTabs[0].id);
-    }
-    if (sftpRightTabs.length && sftpRightActiveId && !sftpRightTabs.find(t => t.id === sftpRightActiveId)) {
-      setSftpRightActiveId(sftpRightTabs[0].id);
-    }
-  };
-
-  useEffect(() => {
-    ensureActiveTabs();
-  }, [sftpLeftTabs, sftpRightTabs]);
-
-  const activeLeftTab = useMemo(() => sftpLeftTabs.find(t => t.id === sftpLeftActiveId) || sftpLeftTabs[0] || null, [sftpLeftActiveId, sftpLeftTabs]);
-  const activeRightTab = useMemo(() => {
-    if (sftpRightActiveId) return sftpRightTabs.find(t => t.id === sftpRightActiveId) || null;
-    return sftpRightTabs[0] || null;
-  }, [sftpRightActiveId, sftpRightTabs]);
-
-  const leftEntries = useMemo(() => getEntriesForTab(activeLeftTab), [activeLeftTab]);
-  const rightEntries = useMemo(() => getEntriesForTab(activeRightTab), [activeRightTab]);
-  const leftBreadcrumbs = useMemo(() => breadcrumbForPath(activeLeftTab?.path || '/'), [activeLeftTab]);
-  const rightBreadcrumbs = useMemo(() => breadcrumbForPath(activeRightTab?.path || '/'), [activeRightTab]);
+  const leftEntries = useMemo(() => getEntriesForTab(sftpLeftTab), [sftpLeftTab]);
+  const rightEntries = useMemo(() => getEntriesForTab(sftpRightTab), [sftpRightTab]);
+  const leftBreadcrumbs = useMemo(() => breadcrumbForPath(sftpLeftTab?.path || '/'), [sftpLeftTab]);
+  const rightBreadcrumbs = useMemo(() => breadcrumbForPath(sftpRightTab?.path || '/'), [sftpRightTab]);
 
   const selectHostForSide = (side: 'left' | 'right', host: Host | 'local') => {
-    const tabId = `tab-${side}-${crypto.randomUUID()}`;
     if (host === 'local') {
-      addTab(side, { id: tabId, label: 'Local', isLocal: true, hostId: 'local', path: '/Users/chenqi', filter: '', status: 'connected' });
+      const tab = { id: `tab-${side}-${crypto.randomUUID()}`, label: 'Local', isLocal: true, hostId: 'local', path: '/Users/chenqi', filter: '', status: 'connected' } as SftpPaneTab;
+      side === 'left' ? setSftpLeftTab(tab) : setSftpRightTab(tab);
     } else {
-      addTab(side, { id: tabId, label: host.label, isLocal: false, hostId: host.id, path: '/root', filter: '', status: 'connected' });
+      const tab = { id: `tab-${side}-${crypto.randomUUID()}`, label: host.label, isLocal: false, hostId: host.id, path: '/root', filter: '', status: 'connected' } as SftpPaneTab;
+      side === 'left' ? setSftpLeftTab(tab) : setSftpRightTab(tab);
     }
     setSftpHostModalSide(null);
     setSftpHostPickerSearch('');
@@ -1223,10 +1172,10 @@ function App() {
               draggingSessionId === session.id ? "opacity-70" : ""
             )}
           >
-            <div className="flex items-center gap-2 truncate">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <TerminalSquare size={14} className={cn("shrink-0", activeTabId === session.id ? "text-primary" : "text-muted-foreground")} />
               <span className="truncate">{session.hostLabel}</span>
-              {sessionStatusDot(session.status)}
+              <div className="flex-shrink-0">{sessionStatusDot(session.status)}</div>
             </div>
             <button
               onClick={(e) => closeSession(session.id, e)}
@@ -1561,58 +1510,26 @@ function App() {
         {/* SFTP layer */}
         <div className={cn("absolute inset-0 flex min-h-0", isSftpActive && !draggingSessionId ? "opacity-100 z-20" : "opacity-0 pointer-events-none z-0")}>
           <div className="flex-1 flex flex-col min-h-0 bg-background">
-            <div className="h-14 px-4 border-b border-border/60 bg-secondary/80 backdrop-blur flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <HardDrive size={14} /> <span>SFTP Workspace</span>
-              </div>
-              <div className="ml-auto flex items-center gap-2 app-no-drag">
-                <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-100 border border-emerald-500/30">Tabbed panes</Badge>
-                <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => { setSftpLeftTabs([{ id: 'local-default', label: 'Local', isLocal: true, hostId: 'local', path: '/Users/chenqi', filter: '', status: 'connected' }]); setSftpLeftActiveId('local-default'); setSftpRightTabs([]); setSftpRightActiveId(null); }}>
-                  <RefreshCw size={14} />
-                </Button>
-              </div>
-            </div>
-
             <div className="flex-1 grid grid-cols-1 xl:grid-cols-2 min-h-0 border-t border-border/70">
               {/* Left pane */}
               <div className="flex flex-col min-h-0 border-r border-border/70">
                 <div className="h-12 px-4 border-b border-border/60 flex items-center gap-3">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Monitor size={14} />
-                    <span>{activeLeftTab?.label || 'Local / Hosts'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-nowrap whitespace-nowrap">
-                    {sftpLeftTabs.map(tab => (
-                      <div
-                        key={tab.id}
-                        className={cn(
-                          "flex items-center gap-2 px-3 h-9 rounded-md border text-xs cursor-pointer flex-shrink-0",
-                          tab.id === activeLeftTab?.id ? "border-primary/60 bg-primary/10 text-foreground" : "border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground"
-                        )}
-                        onClick={() => setSftpLeftActiveId(tab.id)}
-                      >
-                        <span className="truncate max-w-[120px]">{tab.label}</span>
-                        <button
-                          className="hover:text-destructive"
-                          onClick={(e) => { e.stopPropagation(); closeTab('left', tab.id); }}
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
+                    <span>{sftpLeftTab?.label || 'Local / Hosts'}</span>
                   </div>
                   <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setSftpHostModalSide('left')}>
-                    <Plus size={14} className="mr-2" /> Add host
+                    <Plus size={14} className="mr-2" /> Change host
                   </Button>
-                  {activeLeftTab && (
+                  {sftpLeftTab && (
                     <div className="flex items-center gap-2 ml-auto">
                       <Input
-                        value={activeLeftTab.filter}
-                        onChange={(e) => updateTabField('left', activeLeftTab.id, () => ({ filter: e.target.value }))}
+                        value={sftpLeftTab.filter}
+                        onChange={(e) => updateTabField('left', () => ({ filter: e.target.value }))}
                         placeholder="Filter"
                         className="h-9 w-44 bg-background/60"
                       />
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => updateTabField('left', activeLeftTab.id, () => ({ filter: '' }))}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => updateTabField('left', () => ({ filter: '' }))}>
                         <X size={14} />
                       </Button>
                     </div>
@@ -1620,11 +1537,12 @@ function App() {
                 </div>
 
                 <div className="px-4 py-2 text-xs text-muted-foreground flex items-center gap-2">
+                  <span className="opacity-60">/</span>
                   {leftBreadcrumbs.map((crumb, idx) => (
                     <React.Fragment key={crumb.path}>
                       <button
-                        className={cn("hover:text-foreground", activeLeftTab?.path === crumb.path && "text-foreground font-semibold")}
-                        onClick={() => activeLeftTab && updateTabField('left', activeLeftTab.id, () => ({ path: crumb.path }))}
+                        className={cn("hover:text-foreground", sftpLeftTab?.path === crumb.path && "text-foreground font-semibold")}
+                        onClick={() => sftpLeftTab && updateTabField('left', () => ({ path: crumb.path }))}
                       >
                         {crumb.label}
                       </button>
@@ -1645,7 +1563,7 @@ function App() {
                       <div
                         key={`${file.name}-${idx}`}
                         className="grid grid-cols-[minmax(0,1fr)_160px_100px_100px] px-4 py-2 items-center hover:bg-primary/5 cursor-pointer text-sm"
-                        onClick={() => openEntry('left', activeLeftTab, file)}
+                        onClick={() => openEntry('left', sftpLeftTab, file)}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={cn("h-8 w-8 rounded-md flex items-center justify-center border border-border/60", file.type === 'directory' ? "bg-primary/10 text-primary" : "bg-secondary/60 text-muted-foreground")}>
@@ -1661,7 +1579,7 @@ function App() {
                   </div>
                   <div className="h-10 px-4 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/70">
                     <span>{leftEntries.length} items</span>
-                    <span>{activeLeftTab?.path}</span>
+                    <span>{sftpLeftTab?.path}</span>
                   </div>
                 </div>
               </div>
@@ -1671,59 +1589,35 @@ function App() {
                 <div className="h-12 px-4 border-b border-border/60 flex items-center gap-3">
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <HardDrive size={14} />
-                    <span>{activeRightTab?.label || 'Remote'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-nowrap whitespace-nowrap">
-                    {sftpRightTabs.map(tab => (
-                      <div
-                        key={tab.id}
-                        className={cn(
-                          "flex items-center gap-2 px-3 h-9 rounded-md border text-xs cursor-pointer flex-shrink-0",
-                          tab.id === activeRightTab?.id ? "border-primary/60 bg-primary/10 text-foreground" : "border-border/60 bg-secondary/60 text-muted-foreground hover:text-foreground"
-                        )}
-                        onClick={() => setSftpRightActiveId(tab.id)}
-                      >
-                        <span className="truncate max-w-[120px]">{tab.label}</span>
-                        <button
-                          className="hover:text-destructive"
-                          onClick={(e) => { e.stopPropagation(); closeTab('right', tab.id); }}
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
+                    <span>{sftpRightTab?.label || 'Remote'}</span>
                   </div>
                   <Button variant="outline" size="sm" className="h-9 px-3" onClick={() => setSftpHostModalSide('right')}>
-                    <Plus size={14} className="mr-2" /> Add host
+                    <Plus size={14} className="mr-2" /> Change host
                   </Button>
-                  {activeRightTab && (
+                  {sftpRightTab && (
                     <div className="flex items-center gap-2 ml-auto">
-                      {activeRightTab.hostId && (
-                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-100 border-emerald-500/30">
-                          Connected
-                        </Badge>
-                      )}
                       <Input
-                        value={activeRightTab.filter}
-                        onChange={(e) => updateTabField('right', activeRightTab.id, () => ({ filter: e.target.value }))}
+                        value={sftpRightTab.filter}
+                        onChange={(e) => updateTabField('right', () => ({ filter: e.target.value }))}
                         placeholder="Filter remote"
                         className="h-9 w-44 bg-background/60"
                       />
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => updateTabField('right', activeRightTab.id, () => ({ filter: '' }))}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={() => updateTabField('right', () => ({ filter: '' }))}>
                         <X size={14} />
                       </Button>
                     </div>
                   )}
                 </div>
 
-                {activeRightTab ? (
+                {sftpRightTab ? (
                   <>
                     <div className="px-4 py-2 text-xs text-muted-foreground flex items-center gap-2">
+                      <span className="opacity-60">/</span>
                       {rightBreadcrumbs.map((crumb, idx) => (
                         <React.Fragment key={crumb.path}>
                           <button
-                            className={cn("hover:text-foreground", activeRightTab.path === crumb.path && "text-foreground font-semibold")}
-                            onClick={() => updateTabField('right', activeRightTab.id, () => ({ path: crumb.path }))}
+                            className={cn("hover:text-foreground", sftpRightTab.path === crumb.path && "text-foreground font-semibold")}
+                            onClick={() => updateTabField('right', () => ({ path: crumb.path }))}
                           >
                             {crumb.label}
                           </button>
@@ -1743,7 +1637,7 @@ function App() {
                           <div
                             key={`${file.name}-${idx}`}
                             className="grid grid-cols-[minmax(0,1fr)_160px_100px_100px] px-4 py-2 items-center hover:bg-primary/5 cursor-pointer text-sm"
-                            onClick={() => openEntry('right', activeRightTab, file)}
+                            onClick={() => openEntry('right', sftpRightTab, file)}
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <div className={cn("h-8 w-8 rounded-md flex items-center justify-center border border-border/60", file.type === 'directory' ? "bg-primary/10 text-primary" : "bg-secondary/60 text-muted-foreground")}>
@@ -1759,7 +1653,7 @@ function App() {
                       </div>
                       <div className="h-10 px-4 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/70">
                         <span>{rightEntries.length} items</span>
-                        <span>{activeRightTab?.hostId || 'No host'}</span>
+                        <span>{sftpRightTab?.hostId || 'No host'}</span>
                       </div>
                     </div>
                   </>
@@ -1782,7 +1676,7 @@ function App() {
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Select Host</DialogTitle>
-              <DialogDescription>Pick a host to open as a new tab on the {sftpHostModalSide === 'left' ? 'left' : 'right'} pane.</DialogDescription>
+          <DialogDescription>Pick a host for the {sftpHostModalSide === 'left' ? 'left' : 'right'} pane.</DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <Input
