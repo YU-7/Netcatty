@@ -505,9 +505,10 @@ function App() {
 
   const getEntriesForTab = (tab: SftpPaneTab | null) => {
     if (!tab) return [];
-    const map = tab.isLocal ? LOCAL_FILE_MAP : REMOTE_FILE_MAP;
-    const files = map[tab.path] || [];
-    const withParent = tab.path === '/' ? files : [{ name: '..', type: 'directory', size: '--', lastModified: '--', kind: 'folder' }, ...files];
+    const map: Record<string, FileItem[]> = tab.isLocal ? LOCAL_FILE_MAP : REMOTE_FILE_MAP;
+    const files: FileItem[] = map[tab.path] || [];
+    const parentEntry: FileItem = { name: '..', type: 'directory', size: '--', lastModified: '--', kind: 'folder' };
+    const withParent = tab.path === '/' ? files : [parentEntry, ...files];
     return applyFileFilter(withParent, tab.filter);
   };
 
@@ -1021,6 +1022,7 @@ function App() {
   const isVaultActive = activeTabId === 'vault';
   const isSftpActive = activeTabId === 'sftp';
   const isTerminalLayerActive = !isVaultActive && !isSftpActive;
+  const isTerminalLayerVisible = isTerminalLayerActive || !!draggingSessionId;
   const isMacClient = typeof navigator !== 'undefined' && /Mac|Macintosh/.test(navigator.userAgent);
 
   useEffect(() => {
@@ -1557,7 +1559,7 @@ function App() {
         </div>
 
         {/* SFTP layer */}
-        <div className={cn("absolute inset-0 flex min-h-0", isSftpActive ? "opacity-100 z-20" : "opacity-0 pointer-events-none z-0")}>
+        <div className={cn("absolute inset-0 flex min-h-0", isSftpActive && !draggingSessionId ? "opacity-100 z-20" : "opacity-0 pointer-events-none z-0")}>
           <div className="flex-1 flex flex-col min-h-0 bg-background">
             <div className="h-14 px-4 border-b border-border/60 bg-secondary/80 backdrop-blur flex items-center gap-3">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -1833,7 +1835,7 @@ function App() {
         {/* Terminal layer (kept mounted) */}
         <div
           ref={workspaceOuterRef}
-          className={cn("absolute inset-0 bg-background", isTerminalLayerActive ? "opacity-100 z-10" : "opacity-0 pointer-events-none z-0")}
+          className={cn("absolute inset-0 bg-background", isTerminalLayerVisible ? "opacity-100 z-10" : "opacity-0 pointer-events-none z-0")}
         >
           {draggingSessionId && (
             <div
@@ -1877,8 +1879,8 @@ function App() {
               const host = hosts.find(h => h.id === session.hostId);
               if (!host) return null;
               const inActiveWorkspace = !!activeWorkspace && session.workspaceId === activeWorkspace.id;
-              const isActiveSolo = activeTabId === session.id && !activeWorkspace && isTerminalLayerActive;
-              const isVisible = (inActiveWorkspace || isActiveSolo) && isTerminalLayerActive;
+              const isActiveSolo = activeTabId === session.id && !activeWorkspace && isTerminalLayerVisible;
+              const isVisible = (inActiveWorkspace || isActiveSolo) && isTerminalLayerVisible;
               const rect = inActiveWorkspace ? activeWorkspaceRects[session.id] : null;
               const isFocused = focusedSessionId === session.id && isVisible;
 
